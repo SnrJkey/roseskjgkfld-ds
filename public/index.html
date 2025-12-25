@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>💼 ROSES FAMILY PANEL</title>
+<style>
+body { background: radial-gradient(circle at top,#1c1f26,#0b0d12); font-family:"Segoe UI",Arial,sans-serif; color:#e0e0e0; padding:20px; }
+h1 { text-align:center; margin-bottom:20px; letter-spacing:2px; animation:fadeIn 1s ease; }
+.panel { background: rgba(20,22,30,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 0 20px rgba(0,0,0,0.6); transition: transform 0.3s ease, box-shadow 0.3s ease; word-wrap: break-word; overflow-wrap: break-word; }
+.panel:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(0,255,200,0.6); }
+.tabs { display:flex; gap:10px; margin-bottom:15px; flex-wrap: wrap; }
+.tab { flex:1; padding:10px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#aaa; font-weight:600; cursor:pointer; transition: all 0.3s ease; text-align:center; }
+.tab:hover { color:#00ff9c; transform: scale(1.03); }
+.tab.active { background: linear-gradient(135deg,#00ff9c,#00b3ff); color:#000; box-shadow:0 0 15px rgba(0,255,200,0.5); }
+.tab-content { display:none; opacity:0; transform:translateY(10px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.tab-content.active { display:block; opacity:1; transform:translateY(0); }
+input, select { width:100%; padding:9px; margin-bottom:8px; background: rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; word-break: break-word; }
+button { width:100%; padding:10px; background:linear-gradient(135deg,#00ff9c,#00b3ff); border:none; border-radius:8px; font-weight:700; cursor:pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+button:hover { transform: scale(1.05); box-shadow:0 0 20px rgba(0,255,200,0.5); }
+button:active { transform: scale(0.97); }
+ul { max-width:100%; padding-left:0; list-style:none; word-wrap: break-word; overflow-wrap: break-word; }
+li { background: rgba(0,0,0,0.55); margin-bottom:6px; padding:8px 10px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; transition: transform 0.3s ease, background 0.3s ease; word-wrap: break-word; overflow-wrap: break-word; }
+li:hover { background: rgba(0,255,200,0.1); transform: translateX(5px); }
+.remove { cursor:pointer; color:#ff4d4d; font-weight:bold; transition: transform 0.2s ease; }
+.remove:hover { transform: scale(1.2); }
+.rank-boss { color:#ff0000; font-weight:bold; text-shadow:0 0 3px #ff0000; }
+.rank-vice { color:#ff8c00; font-weight:bold; text-shadow:0 0 3px #ff8c00; }
+.rank-soldier { color:#00ff9c; font-weight:bold; text-shadow:0 0 3px #00ff9c; }
+.rank-newbie { color:#00b3ff; font-weight:bold; text-shadow:0 0 3px #00b3ff; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+const API = "/api"; // Node.js сервер
+
+let currentUser = null;
+let users = [];
+let finance = [];
+let family = [];
+let chat = [];
+let hasAccess = false;
+const currencies = { gold:"💰 Деньги", crystal:"📦 Материалы", energy:"⚡ Спанк", ammo:"🔫 7.62mm", alco:"🍺 Алко" };
+
+// ===== Helper =====
+async function fetchData(type){ const res = await fetch(`${API}/${type}`); return res.json(); }
+async function postData(type,data){ await fetch(`${API}/${type}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); }
+
+// ===== LOGIN / REGISTER =====
+function showLogin(){
+document.getElementById("app").innerHTML = `
+<div style="max-width:400px;margin:50px auto;text-align:center;">
+<h2>Вход / Регистрация</h2>
+<input id="loginName" placeholder="Имя"><br>
+<input id="loginPass" type="password" placeholder="Пароль"><br>
+<button onclick="login()">Войти</button>
+<button onclick="register()">Регистрация</button>
+</div>`;
+}
+
+async function register(){
+const name=document.getElementById("loginName").value.trim();
+const pass=document.getElementById("loginPass").value.trim();
+if(!name||!pass){alert("Введите имя и пароль"); return;}
+users=await fetchData("users");
+if(users.find(u=>u.name===name)){alert("Пользователь уже существует"); return;}
+const rank=users.length===0?"boss":"newbie";
+await postData("users",{name,pass,rank});
+currentUser={name,rank};
+loadApp();
+}
+
+async function login(){
+const name=document.getElementById("loginName").value.trim();
+const pass=document.getElementById("loginPass").value.trim();
+users=await fetchData("users");
+const user=users.find(u=>u.name===name && u.pass===pass);
+if(!user){alert("Неверное имя или пароль"); return;}
+currentUser=user;
+loadApp();
+}
+
+// ===== LOAD APP =====
+async function loadApp(){
+document.getElementById("app").innerHTML = `
+<h1>💼 ROSES FAMILY - ${currentUser.name}</h1>
+<div class="tabs">
+<button class="tab active" data-tab="treasury">КАЗНА</button>
+<button class="tab" data-tab="logs">ЛОГИ</button>
+<button class="tab" data-tab="family">СОСТАВ СЕМЬИ</button>
+<button class="tab" data-tab="chat">ЧАТ</button>
+<button class="tab" data-tab="settings" id="settingsTab">НАСТРОЙКИ</button>
+</div>
+<div class="tab-content active" id="treasury">
+<div class="panel">
+<h3>Баланс</h3><ul id="balances"></ul>
+</div>
+<div class="panel">
+<input id="amount" type="number" placeholder="Сумма" min="1">
+<input id="reason" placeholder="Причина">
+<select id="currency">
+<option value="gold">💰 Деньги</option>
+<option value="crystal">📦 Материалы</option>
+<option value="energy">⚡ Спанк</option>
+<option value="ammo">🔫 7.62mm</option>
+<option value="alco">🍺 Алко</option>
+</select>
+<select id="type">
+<option value="add">Доход</option>
+<option value="sub">Расход</option>
+</select>
+<button onclick="addOperation()">ВЫПОЛНИТЬ</button>
+</div>
+</div>
+<div class="tab-content" id="logs"><div class="panel"><h3>История операций</h3><ul id="history"></ul></div></div>
+<div class="tab-content" id="family">
+<div class="panel">
+<h3>Состав семьи</h3>
+<label>Фильтр по рангу:</label>
+<select id="rankFilter" onchange="renderFamily()">
+<option value="all">Все</option>
+<option value="boss">Босс</option>
+<option value="vice">Зам</option>
+<option value="soldier">Солдат</option>
+<option value="newbie">Новичок</option>
+</select>
+<input id="searchName" placeholder="Поиск по имени" oninput="renderFamily()">
+<ul id="familyList"></ul>
+</div>
+<div class="panel" id="addMemberPanel" style="display:none;">
+<input id="memberName" placeholder="Имя персонажа">
+<select id="memberRank">
+<option value="boss">Босс</option>
+<option value="vice">Зам</option>
+<option value="soldier">Солдат</option>
+<option value="newbie">Новичок</option>
+</select>
+<button onclick="addMember()">ДОБАВИТЬ</button>
+</div>
+</div>
+<div class="tab-content" id="chat">
+<div class="panel">
+<h3>Чат</h3>
+<ul id="chatList" style="max-height:300px;overflow-y:auto;"></ul>
+<input id="chatInput" placeholder="Введите сообщение">
+<button onclick="sendMessage()">Отправить</button>
+</div>
+</div>
+<div class="tab-content" id="settings">
+<div class="panel">
+<p>Только для босса</p>
+<button onclick="clearData()">ОЧИСТИТЬ КАЗНУ</button>
+</div>
+</div>
+`;
+
+document.querySelectorAll(".tab").forEach(tab=>{tab.onclick=()=>{document.querySelectorAll(".tab,.tab-content").forEach(e=>e.classList.remove("active")); tab.classList.add("active"); document.getElementById(tab.dataset.tab).classList.add("active");}});
+
+hasAccess=currentUser.rank==="boss";
+document.getElementById("settingsTab").style.display = hasAccess?"block":"none";
+document.getElementById("settings").style.display = hasAccess?"block":"none";
+document.getElementById("addMemberPanel").style.display = hasAccess?"block":"none";
+
+finance=await fetchData("finance");
+family=await fetchData("family");
+chat=await fetchData("chat");
+render();
+renderFamily();
+renderChat();
+}
+
+// ===== FINANCE =====
+async function addOperation(){
+const amount=Number(document.getElementById("amount").value);
+const reason=document.getElementById("reason").value.trim();
+const currency=document.getElementById("currency").value;
+const type=document.getElementById("type").value;
+if(!amount||!reason)return;
+const op={amount:type==="add"?amount:-amount,currency,reason,user:currentUser.name,date:new Date().toLocaleString()};
+await postData("finance",op);
+finance.push(op);
+render();
+}
+
+function render(){
+const balances={};
+const history=document.getElementById("history");
+history.innerHTML="";
+finance.forEach(op=>{
+balances[op.currency]=(balances[op.currency]||0)+op.amount;
+const li=document.createElement("li");
+li.textContent=`${currencies[op.currency]} ${op.amount>0?"+":""}${op.amount} — ${op.reason}`;
+history.prepend(li);
+});
+const balancesList=document.getElementById("balances");
+balancesList.innerHTML="";
+for(const c in currencies){
+const li=document.createElement("li");
+li.textContent=`${currencies[c]}: ${balances[c]||0}`;
+balancesList.appendChild(li);
+}
+}
+
+// ===== FAMILY =====
+async function addMember(){
+if(!hasAccess){alert("Только Босс может добавлять участников!"); return;}
+const name=document.getElementById("memberName").value.trim();
+const rank=document.getElementById("memberRank").value;
+if(!name)return;
+const member={name,rank};
+await postData("family",member);
+family.push(member);
+renderFamily();
+document.getElementById("memberName").value="";
+}
+
+async function removeMember(i){
+if(!hasAccess){alert("Только Босс может удалять участников!"); return;}
+const member=family[i];
+family.splice(i,1);
+await fetch(`${API}/family`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove',name:member.name})});
+renderFamily();
+}
+
+function renderFamily(){
+const ul=document.getElementById("familyList");
+ul.innerHTML="";
+const rankOrder={boss:1,vice:2,soldier:3,newbie:4};
+let sorted=family.slice().sort((a,b)=>rankOrder[a.rank]-rankOrder[b.rank]);
+const filter=document.getElementById("rankFilter").value;
+if(filter!=="all")sorted=sorted.filter(m=>m.rank===filter);
+const search=document.getElementById("searchName").value.trim().toLowerCase();
+if(search)sorted=sorted.filter(m=>m.name.toLowerCase().includes(search));
+sorted.forEach(m=>{
+let rankClass="rank-newbie";
+if(m.rank==="boss") rankClass="rank-boss";
+else if(m.rank==="vice") rankClass="rank-vice";
+else if(m.rank==="soldier") rankClass="rank-soldier";
+const li=document.createElement("li");
+li.innerHTML=`<span class="${rankClass}">${m.name} — ${m.rank}</span>
+${hasAccess?`<span class="remove" onclick="removeMember(${family.indexOf(m)})">✖</span>`:""}`;
+ul.appendChild(li);
+});
+}
+
+// ===== CHAT =====
+async function sendMessage(){
+const text=document.getElementById("chatInput").value.trim();
+if(!text)return;
+const msg={user:currentUser.name,message:text,time:new Date().toLocaleTimeString()};
+await postData("chat",msg);
+chat.push(msg);
+renderChat();
+document.getElementById("chatInput").value="";
+}
+
+function renderChat(){
+const ul=document.getElementById("chatList");
+ul.innerHTML="";
+chat.forEach(m=>{
+const li=document.createElement("li");
+li.textContent=`[${m.time}] ${m.user}: ${m.message}`;
+ul.appendChild(li);
+});
+}
+
+// ===== SETTINGS =====
+async function clearData(){
+if(!confirm("Очистить всю казну?"))return;
+finance=[];
+await fetch(`${API}/finance`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear'})});
+render();
+}
+
+// ===== INIT =====
+showLogin();
+</script>
+</body>
+</html>
